@@ -23,6 +23,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { Spacing, BorderRadius, Shadows } from '../../theme/spacing';
 import { Avatar } from '../../components/common/Avatar';
 import { useAuthStore } from '../../store/authStore';
+import { authService } from '../../services/auth/authService';
 import { useUserStore } from '../../store/userStore';
 
 interface MenuItem {
@@ -68,9 +69,13 @@ export const ProfileScreen: React.FC = () => {
       icon: <LogOut size={20} color={theme.colors.error} />,
       label: 'Logout',
       danger: true,
-      onPress: () => {
-        logout();
-        router.replace('/auth/login');
+      onPress: async () => {
+        try {
+          await authService.logout();
+        } finally {
+          logout();
+          router.replace('/auth/login');
+        }
       },
     },
   ];

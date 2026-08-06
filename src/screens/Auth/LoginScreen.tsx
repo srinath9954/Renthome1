@@ -16,18 +16,15 @@ import { Spacing, BorderRadius } from '../../theme/spacing';
 import { AppTextField } from '../../components/common/AppTextField';
 import { PasswordField } from '../../components/common/PasswordField';
 import { PrimaryButton } from '../../components/common/PrimaryButton';
-import { SecondaryButton } from '../../components/common/SecondaryButton';
-import { useAuthStore } from '../../store/authStore';
-import { useUserStore } from '../../store/userStore';
+import { authService } from '../../services/auth/authService';
 import { LoginRequest } from '../../types/auth';
 import { ValidationMessages, isValidEmail } from '../../utils/validators';
 
 export const LoginScreen: React.FC = () => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { mockLogin } = useAuthStore();
-  const { loadMockUser } = useUserStore();
   const [isLoading, setIsLoading] = useState(false);
+  const [serverError, setServerError] = useState('');
 
   const {
     control,
@@ -38,13 +35,25 @@ export const LoginScreen: React.FC = () => {
   });
 
   const onSubmit = async (data: LoginRequest) => {
+    setServerError('');
     setIsLoading(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-    mockLogin();
-    loadMockUser();
-    setIsLoading(false);
-    router.replace('/(tabs)/home');
+    try {
+      await authService.login(data.email, data.password);
+      // onAuthStateChanged in _layout.tsx will update the store and the
+      // index route will redirect to home automatically.
+      router.replace('/(tabs)/home');
+    } catch (err: any) {
+      const code: string = err?.code ?? '';
+      if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+        setServerError('Invalid email or password. Please try again.');
+      } else if (code === 'auth/too-many-requests') {
+        setServerError('Too many failed attempts. Please try again later.');
+      } else {
+        setServerError('Sign in failed. Please check your connection and try again.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -71,7 +80,7 @@ export const LoginScreen: React.FC = () => {
           </Text>
         </View>
 
-        {/* Form */}
+        {/* Form card */}
         <View style={[styles.formCard, { backgroundColor: theme.colors.surface }]}>
           <Text style={[styles.formTitle, { color: theme.colors.onSurface }]}>
             Welcome Back
@@ -79,6 +88,14 @@ export const LoginScreen: React.FC = () => {
           <Text style={[styles.formSubtitle, { color: theme.colors.onSurfaceVariant }]}>
             Sign in to your account
           </Text>
+
+          {serverError !== '' && (
+            <View style={[styles.errorBanner, { backgroundColor: theme.colors.error + '18' }]}>
+              <Text style={[styles.errorBannerText, { color: theme.colors.error }]}>
+                {serverError}
+              </Text>
+            </View>
+          )}
 
           <Controller
             control={control}
@@ -135,7 +152,6 @@ export const LoginScreen: React.FC = () => {
           />
         </View>
 
-        {/* Register link */}
         <View style={styles.registerRow}>
           <Text style={[styles.registerText, { color: theme.colors.onSurfaceVariant }]}>
             Don't have an account?{' '}
@@ -200,7 +216,16 @@ const styles = StyleSheet.create({
   formSubtitle: {
     fontFamily: 'Poppins-Regular',
     fontSize: 14,
-    marginBottom: Spacing[6],
+    marginBottom: Spacing[4],
+  },
+  errorBanner: {
+    borderRadius: BorderRadius.md,
+    padding: Spacing[3],
+    marginBottom: Spacing[4],
+  },
+  errorBannerText: {
+    fontFamily: 'Poppins-Medium',
+    fontSize: 13,
   },
   forgotPassword: {
     alignSelf: 'flex-end',

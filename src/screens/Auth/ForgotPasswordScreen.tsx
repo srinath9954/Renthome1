@@ -16,6 +16,7 @@ import { Spacing, BorderRadius } from '../../theme/spacing';
 import { AppTextField } from '../../components/common/AppTextField';
 import { PrimaryButton } from '../../components/common/PrimaryButton';
 import { AppHeader } from '../../components/common/AppHeader';
+import { authService } from '../../services/auth/authService';
 import { ForgotPasswordRequest } from '../../types/auth';
 import { ValidationMessages, isValidEmail } from '../../utils/validators';
 
@@ -24,6 +25,7 @@ export const ForgotPasswordScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const [isLoading, setIsLoading] = useState(false);
   const [isSent, setIsSent] = useState(false);
+  const [serverError, setServerError] = useState('');
 
   const {
     control,
@@ -31,11 +33,23 @@ export const ForgotPasswordScreen: React.FC = () => {
     formState: { errors },
   } = useForm<ForgotPasswordRequest>({ defaultValues: { email: '' } });
 
-  const onSubmit = async (_data: ForgotPasswordRequest) => {
+  const onSubmit = async (data: ForgotPasswordRequest) => {
+    setServerError('');
     setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsLoading(false);
-    setIsSent(true);
+    try {
+      await authService.forgotPassword(data.email);
+      setIsSent(true);
+    } catch (err: any) {
+      const code: string = err?.code ?? '';
+      if (code === 'auth/user-not-found') {
+        // Don't reveal whether the email exists — always show success
+        setIsSent(true);
+      } else {
+        setServerError('Something went wrong. Please try again.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -63,8 +77,8 @@ export const ForgotPasswordScreen: React.FC = () => {
               Email Sent!
             </Text>
             <Text style={[styles.successDesc, { color: theme.colors.onSurfaceVariant }]}>
-              We've sent a password reset link to your email. Please check your inbox and
-              follow the instructions.
+              If an account exists for that email address, you will receive a password reset
+              link shortly. Please check your inbox.
             </Text>
             <PrimaryButton
               title="Back to Sign In"
@@ -88,6 +102,16 @@ export const ForgotPasswordScreen: React.FC = () => {
             </Text>
 
             <View style={[styles.formCard, { backgroundColor: theme.colors.surface }]}>
+              {serverError !== '' && (
+                <View
+                  style={[styles.errorBanner, { backgroundColor: theme.colors.error + '18' }]}
+                >
+                  <Text style={[styles.errorBannerText, { color: theme.colors.error }]}>
+                    {serverError}
+                  </Text>
+                </View>
+              )}
+
               <Controller
                 control={control}
                 name="email"
@@ -161,6 +185,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 4,
+  },
+  errorBanner: {
+    borderRadius: BorderRadius.md,
+    padding: Spacing[3],
+    marginBottom: Spacing[4],
+  },
+  errorBannerText: {
+    fontFamily: 'Poppins-Medium',
+    fontSize: 13,
   },
   submitButton: {
     width: '100%',

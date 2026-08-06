@@ -1,33 +1,29 @@
 import { create } from 'zustand';
 import { AuthUser } from '../types/auth';
-import { DUMMY_USER } from '../constants/dummyData';
 
 interface AuthState {
   isAuthenticated: boolean;
+  isInitialized: boolean; // true once Firebase has resolved the first auth state
   user: AuthUser | null;
-  accessToken: string | null;
-  refreshToken: string | null;
   isLoading: boolean;
-  login: (user: AuthUser, accessToken: string, refreshToken: string) => void;
+  setUser: (user: AuthUser | null) => void;
+  setInitialized: () => void;
   logout: () => void;
-  updateUser: (user: Partial<AuthUser>) => void;
+  updateUser: (updates: Partial<AuthUser>) => void;
   setLoading: (loading: boolean) => void;
-  // Mock login for development
-  mockLogin: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
+  isInitialized: false,
   user: null,
-  accessToken: null,
-  refreshToken: null,
   isLoading: false,
 
-  login: (user, accessToken, refreshToken) =>
-    set({ isAuthenticated: true, user, accessToken, refreshToken }),
+  setUser: (user) => set({ user, isAuthenticated: !!user }),
 
-  logout: () =>
-    set({ isAuthenticated: false, user: null, accessToken: null, refreshToken: null }),
+  setInitialized: () => set({ isInitialized: true }),
+
+  logout: () => set({ isAuthenticated: false, user: null }),
 
   updateUser: (updates) =>
     set((state) => ({
@@ -35,19 +31,4 @@ export const useAuthStore = create<AuthState>((set) => ({
     })),
 
   setLoading: (isLoading) => set({ isLoading }),
-
-  mockLogin: () =>
-    set({
-      isAuthenticated: true,
-      user: {
-        id: DUMMY_USER.id,
-        name: DUMMY_USER.name,
-        email: DUMMY_USER.email,
-        phone: DUMMY_USER.phone,
-        avatarUrl: DUMMY_USER.avatarUrl,
-        isVerified: DUMMY_USER.isVerified,
-      },
-      accessToken: 'mock-access-token',
-      refreshToken: 'mock-refresh-token',
-    }),
 }));

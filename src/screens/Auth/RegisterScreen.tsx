@@ -17,6 +17,7 @@ import { AppTextField } from '../../components/common/AppTextField';
 import { PasswordField } from '../../components/common/PasswordField';
 import { PrimaryButton } from '../../components/common/PrimaryButton';
 import { AppHeader } from '../../components/common/AppHeader';
+import { authService } from '../../services/auth/authService';
 import { RegisterRequest } from '../../types/auth';
 import {
   ValidationMessages,
@@ -30,6 +31,7 @@ export const RegisterScreen: React.FC = () => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const [isLoading, setIsLoading] = useState(false);
+  const [serverError, setServerError] = useState('');
 
   const {
     control,
@@ -42,11 +44,25 @@ export const RegisterScreen: React.FC = () => {
 
   const password = watch('password');
 
-  const onSubmit = async (_data: RegisterRequest) => {
+  const onSubmit = async (data: RegisterRequest) => {
+    setServerError('');
     setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-    setIsLoading(false);
-    router.replace('/auth/login');
+    try {
+      await authService.register(data.name, data.email, data.phone, data.password);
+      // onAuthStateChanged will update the store — navigate straight to the app.
+      router.replace('/(tabs)/home');
+    } catch (err: any) {
+      const code: string = err?.code ?? '';
+      if (code === 'auth/email-already-in-use') {
+        setServerError('An account with this email already exists.');
+      } else if (code === 'auth/weak-password') {
+        setServerError('Password is too weak. Please choose a stronger password.');
+      } else {
+        setServerError('Registration failed. Please check your connection and try again.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -68,6 +84,14 @@ export const RegisterScreen: React.FC = () => {
         </Text>
 
         <View style={[styles.formCard, { backgroundColor: theme.colors.surface }]}>
+          {serverError !== '' && (
+            <View style={[styles.errorBanner, { backgroundColor: theme.colors.error + '18' }]}>
+              <Text style={[styles.errorBannerText, { color: theme.colors.error }]}>
+                {serverError}
+              </Text>
+            </View>
+          )}
+
           <Controller
             control={control}
             name="name"
@@ -214,6 +238,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 4,
+  },
+  errorBanner: {
+    borderRadius: BorderRadius.md,
+    padding: Spacing[3],
+    marginBottom: Spacing[4],
+  },
+  errorBannerText: {
+    fontFamily: 'Poppins-Medium',
+    fontSize: 13,
   },
   submitButton: {
     width: '100%',

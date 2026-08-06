@@ -1,42 +1,62 @@
-import axiosInstance from '../api/axiosInstance';
-import { API_ENDPOINTS } from '../../constants/api';
 import {
-  LoginRequest,
-  RegisterRequest,
-  ForgotPasswordRequest,
-  AuthResponse,
-} from '../../types/auth';
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  sendPasswordResetEmail,
+  updateProfile,
+  User as FirebaseUser,
+} from 'firebase/auth';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '../../config/firebase';
+import { AuthUser } from '../../types/auth';
 
-// Placeholder service — replace with real API calls when backend is ready
+export const mapFirebaseUser = (firebaseUser: FirebaseUser): AuthUser => ({
+  id: firebaseUser.uid,
+  name: firebaseUser.displayName ?? 'User',
+  email: firebaseUser.email ?? '',
+  phone: firebaseUser.phoneNumber ?? '',
+  avatarUrl: firebaseUser.photoURL ?? undefined,
+  isVerified: firebaseUser.emailVerified,
+});
 
 export const authService = {
-  login: async (data: LoginRequest): Promise<AuthResponse> => {
-    const response = await axiosInstance.post<AuthResponse>(API_ENDPOINTS.LOGIN, data);
-    return response.data;
+  login: async (email: string, password: string): Promise<AuthUser> => {
+    const { user } = await signInWithEmailAndPassword(auth, email, password);
+    return mapFirebaseUser(user);
   },
 
-  register: async (data: RegisterRequest): Promise<AuthResponse> => {
-    const response = await axiosInstance.post<AuthResponse>(API_ENDPOINTS.REGISTER, data);
-    return response.data;
+  register: async (
+    name: string,
+    email: string,
+    phone: string,
+    password: string,
+  ): Promise<AuthUser> => {
+    const { user } = await createUserWithEmailAndPassword(auth, email, password);
+    await updateProfile(user, { displayName: name });
+
+    // Store extra fields (phone, etc.) in Firestore
+    await setDoc(doc(db, 'users', user.uid), {
+      uid: user.uid,
+      name,
+      email,
+      phone,
+      isVerified: false,
+      createdAt: serverTimestamp(),
+    });
+
+    return { ...mapFirebaseUser(user), name, phone };
   },
 
-  forgotPassword: async (data: ForgotPasswordRequest): Promise<{ message: string }> => {
-    const response = await axiosInstance.post<{ message: string }>(
-      API_ENDPOINTS.FORGOT_PASSWORD,
-      data,
-    );
-    return response.data;
+  forgotPassword: async (email: string): Promise<void> => {
+    await sendPasswordResetEmail(auth, email);
   },
 
   logout: async (): Promise<void> => {
-    await axiosInstance.post(API_ENDPOINTS.LOGOUT);
+    await signOut(auth);
   },
 
-  refreshToken: async (refreshToken: string): Promise<{ accessToken: string }> => {
-    const response = await axiosInstance.post<{ accessToken: string }>(
-      API_ENDPOINTS.REFRESH_TOKEN,
-      { refreshToken },
-    );
-    return response.data;
+  getUserProfile: async (uid: string) => {
+    const snap = await getDoc(doc(db, 'users', uid));
+    return snap.exists() ? snap.data() : null;
   },
 };

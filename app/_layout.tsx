@@ -13,22 +13,24 @@ import {
   Poppins_700Bold,
 } from '@expo-google-fonts/poppins';
 import * as SplashScreen from 'expo-splash-screen';
+import { onAuthStateChanged } from 'firebase/auth';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
+import { auth } from '../src/config/firebase';
+import { useAuthStore } from '../src/store/authStore';
+import { authService } from '../src/services/auth/authService';
 
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000,
-      retry: 2,
-    },
+    queries: { staleTime: 5 * 60 * 1000, retry: 2 },
   },
 });
 
 export default function RootLayout() {
   useFrameworkReady();
   const colorScheme = useColorScheme();
+  const { setUser, setInitialized } = useAuthStore();
 
   const [fontsLoaded, fontError] = useFonts({
     'Poppins-Regular': Poppins_400Regular,
@@ -42,6 +44,29 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, fontError]);
+
+  // Subscribe to Firebase auth state once — runs for the lifetime of the app.
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        // Merge Firestore profile data (phone, etc.) on top of the Firebase user
+        const profile = await authService.getUserProfile(firebaseUser.uid);
+        setUser({
+          id: firebaseUser.uid,
+          name: firebaseUser.displayName ?? profile?.name ?? 'User',
+          email: firebaseUser.email ?? '',
+          phone: profile?.phone ?? firebaseUser.phoneNumber ?? '',
+          avatarUrl: firebaseUser.photoURL ?? undefined,
+          isVerified: firebaseUser.emailVerified,
+        });
+      } else {
+        setUser(null);
+      }
+      setInitialized();
+    });
+
+    return unsubscribe;
+  }, []);
 
   if (!fontsLoaded && !fontError) {
     return null;
