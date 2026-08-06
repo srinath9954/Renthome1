@@ -34,15 +34,20 @@ export const authService = {
     const { user } = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(user, { displayName: name });
 
-    // Store extra fields (phone, etc.) in Firestore
-    await setDoc(doc(db, 'users', user.uid), {
-      uid: user.uid,
-      name,
-      email,
-      phone,
-      isVerified: false,
-      createdAt: serverTimestamp(),
-    });
+    // Best-effort: store extra fields in Firestore. If this fails (e.g. rules not
+    // yet configured) we still complete registration — the auth account was created.
+    try {
+      await setDoc(doc(db, 'users', user.uid), {
+        uid: user.uid,
+        name,
+        email,
+        phone,
+        isVerified: false,
+        createdAt: serverTimestamp(),
+      });
+    } catch (firestoreErr) {
+      console.warn('Firestore profile write failed (non-fatal):', firestoreErr);
+    }
 
     return { ...mapFirebaseUser(user), name, phone };
   },
@@ -56,7 +61,11 @@ export const authService = {
   },
 
   getUserProfile: async (uid: string) => {
-    const snap = await getDoc(doc(db, 'users', uid));
-    return snap.exists() ? snap.data() : null;
+    try {
+      const snap = await getDoc(doc(db, 'users', uid));
+      return snap.exists() ? snap.data() : null;
+    } catch {
+      return null;
+    }
   },
 };

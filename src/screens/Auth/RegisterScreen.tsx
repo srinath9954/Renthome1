@@ -53,12 +53,19 @@ export const RegisterScreen: React.FC = () => {
       router.replace('/(tabs)/home');
     } catch (err: any) {
       const code: string = err?.code ?? '';
+      console.error('Registration error:', code, err?.message);
       if (code === 'auth/email-already-in-use') {
         setServerError('An account with this email already exists.');
       } else if (code === 'auth/weak-password') {
-        setServerError('Password is too weak. Please choose a stronger password.');
+        setServerError('Password is too weak. Use at least 6 characters.');
+      } else if (code === 'auth/invalid-email') {
+        setServerError('Please enter a valid email address.');
+      } else if (code === 'auth/network-request-failed') {
+        setServerError('No internet connection. Please try again.');
+      } else if (code === 'auth/operation-not-allowed') {
+        setServerError('Email sign-up is not enabled. Please contact support.');
       } else {
-        setServerError('Registration failed. Please check your connection and try again.');
+        setServerError(`Registration failed (${code || 'unknown'}). Please try again.`);
       }
     } finally {
       setIsLoading(false);
